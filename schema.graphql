@@ -1,0 +1,23 @@
+type Vault @entity {
+    id: ID!
+    txCount: Int!
+    strategy: Strategy
+    address: String!
+    name: String
+    symbol: String
+    decimals: BigInt!
+    active: Boolean
+    underlying: String!
+    tvl: BigInt!
+    rewardTokens: [String!]
+    periodFinishForToken: BigInt!
+    rewardRateForToken: BigInt!
+}
+
+type Strategy @entity {
+    id: ID!
+    address: String!
+    name: String
+    symbol: String
+    decimals: BigInt!
+}
