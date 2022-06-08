@@ -9,16 +9,20 @@ dataSources:
     source:
       address: '0x6678814c273d5088114B6E40cC49C8DB04F9bC29'
       abi: Controller
-      startBlock: 17462293
+#     default startBlock 17462293
+      startBlock: 17578242
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.5
+      apiVersion: 0.0.6
       language: wasm/assemblyscript
       file: ./src/mappings/controller.ts
       entities:
         - Vault
         - Strategy
+        - TetuContract
       abis:
+        - name: ContractReader
+          file: ./abis/contractReader.json
         - name: Controller
           file: ./abis/controller.json
         - name: ERC20
@@ -40,11 +44,20 @@ templates:
       abi: Vault
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.5
+      apiVersion: 0.0.6
       language: wasm/assemblyscript
-      file: ./src/mappings/core.ts
+      file: ./src/mappings/vault.ts
       entities:
         - Vault
       abis:
         - name: Vault
           file: ./abis/vault.json
+      eventHandlers:
+        - event: Deposit(indexed address,uint256)
+          handler: handleDeposit
+        - event: Withdraw(indexed address,uint256)
+          handler: handleWithdraw
+        - event: AddedRewardToken(indexed address)
+          handler: handleAddedRewardToken
+        - event: RemovedRewardToken(indexed address)
+          handler: handleRemovedRewardToken
