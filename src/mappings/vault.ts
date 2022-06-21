@@ -1,7 +1,7 @@
 import { Withdraw, Deposit, AddedRewardToken, RemovedRewardToken } from "../../generated/templates/Vault/Vault";
-import { Vault } from "../../generated/schema";
-import { Address, log } from "@graphprotocol/graph-ts";
-import { fetchGetPrice, fetchPricePerFullShare, fetchRewardTokens } from "./helper";
+import { PPFS, TVL, Underlying, Vault } from "../../generated/schema";
+import { Address, ethereum, log } from "@graphprotocol/graph-ts";
+import { fetchGetPrice, fetchPricePerFullShare, fetchRewardTokens, toNumber } from "./helper";
 
 
 export function handleDeposit(event: Deposit): void {
@@ -16,9 +16,21 @@ export function handleDeposit(event: Deposit): void {
     return;
   }
   vault.tvl = vault.tvl.plus(amount)
-  vault.tvlUsdc = fetchGetPrice(Address.fromString(vault.underlying)) * vault.tvl
+
+  const underlying = Underlying.load(vault.underlying)
+  if (underlying == null) {
+    log.log(log.Level.CRITICAL, `can not find underlying by address: ${vault.underlying}`)
+    return;
+  }
+
+  // @ts-ignore
+  vault.tvlUsdc = toNumber(fetchGetPrice(Address.fromString(underlying.id)), underlying.decimals) * vault.tvl.toBigDecimal()
+
   vault.pricePerFullShare = fetchPricePerFullShare(address)
   vault.save()
+
+  createTvl(vault, event)
+  createPpfs(vault, event)
 }
 
 export function handleWithdraw(event: Withdraw): void {
@@ -33,9 +45,20 @@ export function handleWithdraw(event: Withdraw): void {
     return;
   }
   vault.tvl = vault.tvl.minus(amount)
-  vault.tvlUsdc = fetchGetPrice(Address.fromString(vault.underlying)) * vault.tvl
+
+  const underlying = Underlying.load(vault.underlying)
+  if (underlying == null) {
+    log.log(log.Level.CRITICAL, `can not find underlying by address: ${vault.underlying}`)
+    return;
+  }
+
+  // @ts-ignore
+  vault.tvlUsdc = toNumber(fetchGetPrice(Address.fromString(underlying.id)), underlying.decimals) * vault.tvl.toBigDecimal()
   vault.pricePerFullShare = fetchPricePerFullShare(address)
   vault.save()
+
+  createTvl(vault, event)
+  createPpfs(vault, event)
 }
 
 export function handleAddedRewardToken(event: AddedRewardToken): void {
@@ -58,6 +81,34 @@ export function updateRewardToken(address: Address): void {
     log.log(log.Level.CRITICAL, `can not find vault by address: ${addressString}`)
     return;
   }
+  // @ts-ignore
   vault.rewardTokens = fetchRewardTokens(address).map<string>((rewardToken: Address) => rewardToken.toHexString())
   vault.save()
+}
+
+export function createTvl(vault: Vault, event: ethereum.Event): void {
+  let id = event.transaction.hash.toHex() + "-" + event.logIndex.toString();
+  let tvl = TVL.load(id)
+  if (tvl == null) {
+    tvl = new TVL(id)
+  }
+  tvl.value = vault.tvl
+  tvl.valueUsdc = vault.tvlUsdc
+  tvl.address = vault.id
+  tvl.block = event.block.number
+  tvl.timestamp = event.block.timestamp
+  tvl.save()
+}
+
+export function createPpfs(vault: Vault, event: ethereum.Event): void {
+  let id = event.transaction.hash.toHex() + "-" + event.logIndex.toString();
+  let ppfs = PPFS.load(id)
+  if (ppfs == null) {
+    ppfs = new PPFS(id)
+  }
+  ppfs.value = vault.pricePerFullShare
+  ppfs.address = vault.id
+  ppfs.block = event.block.number
+  ppfs.timestamp = event.block.timestamp
+  ppfs.save()
 }

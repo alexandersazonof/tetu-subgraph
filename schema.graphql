@@ -5,9 +5,9 @@ type Vault @entity {
     symbol: String
     decimals: BigInt!
     active: Boolean
-    underlying: String!
+    underlying: Underlying!
     tvl: BigInt!
-    tvlUsdc: BigInt!
+    tvlUsdc: BigDecimal!
     createdAtBlock: BigInt!
     pricePerFullShare: BigInt!
     rewardTokens: [String!]
@@ -22,9 +22,31 @@ type Strategy @entity {
     decimals: BigInt!
 }
 
+type Underlying @entity {
+    id: ID!
+    decimals: BigInt!
+}
+
 type TetuContract @entity {
     id: ID!
     address: String!
+}
+
+type TVL @entity {
+    id: ID!
+    address: String!
+    block: BigInt!
+    timestamp: BigInt!
+    value: BigInt!
+    valueUsdc: BigDecimal!
+}
+
+type PPFS @entity {
+    id: ID!
+    address: String!
+    block: BigInt!
+    timestamp: BigInt!
+    value: BigInt!
 }
 
 enum TetuContractValue {

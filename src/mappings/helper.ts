@@ -1,12 +1,12 @@
 import { ERC20 } from "../../generated/Controller/ERC20";
 import { ERC20SymbolBytes } from "../../generated/Controller/ERC20SymbolBytes";
-import { Address, BigInt, log } from "@graphprotocol/graph-ts";
+import { Address, BigDecimal, BigInt, log } from "@graphprotocol/graph-ts";
 import { ERC20NameBytes } from "../../generated/Controller/ERC20NameBytes";
 import { Vault } from "../../generated/templates/Vault/Vault";
 import { ContractReader } from "../../generated/Controller/ContractReader";
 
 const CONTRACT_ADDRESS = Address.fromString('0xCa9C8Fba773caafe19E6140eC0A7a54d996030Da')
-
+const DEFAULT_NUMBER_FOR_POW = BigInt.fromI32(10)
 // ERC20 functions
 export function fetchTokenDecimals(tokenAddress: Address): BigInt {
   // hardcode overrides
@@ -89,4 +89,9 @@ export function fetchRewardTokens(address: Address): Address[] {
 export function fetchGetPrice(address: Address): BigInt {
   const contractReader = ContractReader.bind(CONTRACT_ADDRESS)
   return contractReader.getPrice(address)
+}
+
+export function toNumber(value: BigInt, decimal: BigInt): BigDecimal {
+  // @ts-ignore
+  return value.toBigDecimal().div(DEFAULT_NUMBER_FOR_POW.pow(u8(decimal.toI32())).toBigDecimal());
 }

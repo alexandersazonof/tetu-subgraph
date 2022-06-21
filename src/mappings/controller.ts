@@ -1,13 +1,15 @@
-import { VaultAndStrategyAdded, UpdatedAddressSlot } from "../../generated/Controller/Controller";
-import { Strategy, TetuContract, Vault } from "../../generated/schema";
+import { UpdatedAddressSlot, VaultAndStrategyAdded, Controller } from "../../generated/Controller/Controller";
+import { Strategy, TetuContract, Underlying, Vault } from "../../generated/schema";
 import { Vault as VaultTemplate } from "../../generated/templates";
 import { fetchRewardTokens, fetchTokenDecimals, fetchTokenName, fetchTokenSymbol, fetchUnderlying } from "./helper";
-import { Address, BigInt, log } from "@graphprotocol/graph-ts";
-import { Controller } from "../../generated/templates/Vault/Controller";
+import { Address, BigDecimal, BigInt, log } from "@graphprotocol/graph-ts";
+
+const DEFAULT_PPFS = '1000000000000000000'
 
 export function handleVaultAndStrategy(event: VaultAndStrategyAdded): void {
   const controllerAddress = event.address
   const tx = event.transaction.hash.toHex()
+  const block = event.block.number.toI32()
   log.log(log.Level.INFO, `handleVaultAndStrategy tx ${tx}, vault: ${event.params.vault.toHexString()}, strategy: ${event.params.strategy.toHexString()}`)
   const strategyAddress = event.params.strategy
   const vaultAddress = event.params.vault
@@ -23,6 +25,16 @@ export function handleVaultAndStrategy(event: VaultAndStrategyAdded): void {
   strategy.save()
   log.log(log.Level.INFO, 'strategy saved')
 
+  let underlyingAddress = fetchUnderlying(vaultAddress)
+  let underlying = Underlying.load(underlyingAddress.toHexString())
+
+  if (underlying == null) {
+    underlying = new Underlying(underlyingAddress.toHexString())
+  }
+  underlying.decimals = fetchTokenDecimals(underlyingAddress)
+  underlying.save()
+  log.log(log.Level.INFO, 'underlying saved')
+
   let vault = Vault.load(vaultAddress.toHexString())
   VaultTemplate.create(vaultAddress)
   if (vault == null) {
@@ -34,23 +46,24 @@ export function handleVaultAndStrategy(event: VaultAndStrategyAdded): void {
   vault.decimals = fetchTokenDecimals(vaultAddress)
   vault.symbol = fetchTokenSymbol(vaultAddress)
   vault.active = true
-  vault.underlying = fetchUnderlying(vaultAddress).toHexString()
+  vault.underlying = underlying.id
   vault.tvl = BigInt.fromString('0')
-  vault.tvlUsdc = BigInt.fromString('0')
+  vault.tvlUsdc = BigDecimal.fromString('0')
 
   // default value for ppfs is 1000000000000000000
-  vault.pricePerFullShare = BigInt.fromString('1000000000000000000')
+  vault.pricePerFullShare = BigInt.fromString(DEFAULT_PPFS)
+  // @ts-ignore
   vault.rewardTokens = fetchRewardTokens(vaultAddress).map<string>((rewardToken: Address) => rewardToken.toHexString())
   vault.save()
   log.log(log.Level.INFO, 'vault saved')
-  updateContractMetadata(controllerAddress)
+  updateContractMetadata(controllerAddress, block)
 }
 
 export function handleUpdatedAddressSlot(event: UpdatedAddressSlot): void {
   log.log(log.Level.INFO, `handleUpdatedAddressSlot name is ${event.params.name}`)
 }
 
-function updateContractMetadata(address: Address): void {
+function updateContractMetadata(address: Address, block: number): void {
   log.log(log.Level.INFO, `updateContractMetadata name is ${address.toHexString()}`)
 
   let contract = Controller.bind(address)
@@ -71,7 +84,6 @@ function updateContractMetadata(address: Address): void {
   bookkeeper.address = contract.bookkeeper().toHexString()
   bookkeeper.save()
 
-
   // announcer
   let announcer = TetuContract.load('Annoouncer')
   if (announcer == null) {
@@ -89,30 +101,24 @@ function updateContractMetadata(address: Address): void {
   dao.save()
 
   // distributor
-  log.log(log.Level.INFO, 'Before')
-  let distributor = TetuContract.load('Distributor')
-  log.log(log.Level.INFO, 'After load')
-  if (distributor == null) {
-    distributor = new TetuContract('Distributor')
-    log.log(log.Level.INFO, 'In new')
+  let distributorResult = contract.try_distributor()
+  if (!distributorResult.reverted) {
+    let distributor = TetuContract.load('Distributor')
+    if (distributor == null) {
+      distributor = new TetuContract('Distributor')
+    }
+    distributor.address = distributorResult.value.toHexString()
+    distributor.save()
   }
-  log.log(log.Level.INFO, `distributor ${contract.distributor()}`)
-  distributor.address = contract.distributor().toHexString()
-  distributor.save()
-  log.log(log.Level.INFO, 'After save')
 
 
   // feeRewardForwarder
-  log.log(log.Level.INFO, 'Before')
   let feeRewardForwarder = TetuContract.load('FeeRewardForwarder')
-  log.log(log.Level.INFO, 'After load')
   if (feeRewardForwarder == null) {
     feeRewardForwarder = new TetuContract('FeeRewardForwarder')
-    log.log(log.Level.INFO, 'In new')
   }
   feeRewardForwarder.address = contract.feeRewardForwarder().toHexString()
   feeRewardForwarder.save()
-  log.log(log.Level.INFO, 'After save')
 
   // fund
   let fund = TetuContract.load('Fund')
@@ -163,10 +169,15 @@ function updateContractMetadata(address: Address): void {
   rewardToken.save()
 
   // vaultController
-  let vaultController = TetuContract.load('VaultController')
-  if (vaultController == null) {
-    vaultController = new TetuContract('VaultController')
+  let vaultControllerResponse = contract.try_vaultController()
+  if (!vaultControllerResponse.reverted) {
+    log.log(log.Level.INFO, `vaultController reverted, value: ${vaultControllerResponse.value.toHexString()}`)
+    let vaultController = TetuContract.load('VaultController')
+    if (vaultController == null) {
+      vaultController = new TetuContract('VaultController')
+    }
+    vaultController.address = vaultControllerResponse.value.toHexString()
+    vaultController.save()
   }
-  vaultController.address = contract.vaultController().toHexString()
-  vaultController.save()
+  log.log(log.Level.INFO, `updateContractMetadata end`)
 }

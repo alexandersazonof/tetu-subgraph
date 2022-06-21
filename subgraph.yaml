@@ -10,7 +10,7 @@ dataSources:
       address: '0x6678814c273d5088114B6E40cC49C8DB04F9bC29'
       abi: Controller
 #     default startBlock 17462293
-      startBlock: 17578242
+      startBlock: 17462293
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.6
@@ -49,9 +49,14 @@ templates:
       file: ./src/mappings/vault.ts
       entities:
         - Vault
+        - Bookkeeper
       abis:
+        - name: ContractReader
+          file: ./abis/contractReader.json
         - name: Vault
           file: ./abis/vault.json
+        - name: Bookkeeper
+          file: ./abis/bookkeeper.json
       eventHandlers:
         - event: Deposit(indexed address,uint256)
           handler: handleDeposit
@@ -61,3 +66,26 @@ templates:
           handler: handleAddedRewardToken
         - event: RemovedRewardToken(indexed address)
           handler: handleRemovedRewardToken
+  - kind: ethereum/contract
+    name: Bookkeeper
+    network: matic
+    source:
+      abi: Bookkeeper
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.6
+      language: wasm/assemblyscript
+      file: ./src/mappings/bookkeeper.ts
+      entities:
+        - Vault
+        - Bookkeeper
+      abis:
+        - name: ContractReader
+          file: ./abis/contractReader.json
+        - name: Vault
+          file: ./abis/vault.json
+        - name: Bookkeeper
+          file: ./abis/bookkeeper.json
+      eventHandlers:
+        - event: RegisterStrategyEarned(indexed address,uint256)
+          handler: handleRegisterStrategyEarned
